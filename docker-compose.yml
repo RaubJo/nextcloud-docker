@@ -1,0 +1,63 @@
+version: '3'
+services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: ebc_tunnel
+    networks:
+      - nextcloud
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TOKEN}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/hosts:/etc/hosts
+
+  nextcloud:
+    image: nextcloud:latest
+    container_name: ebc_nextcloud
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - tunnel
+    networks:
+      - nextcloud
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./docker/nextcloud:/var/www/html
+    environment:
+      REDIS_HOST: redis
+      NEXTCLOUD_TRUSTED_DOMAIN: "${NEXTCLOUD_TRUSTED_DOMAIN}"
+      TRUSTED_PROXIES: tunnel
+  
+  db:
+    image: mariadb:lts
+    container_name: ebc_db
+    restart: unless-stopped
+    # https://docs.nextcloud.com/server/21/admin_manual/configuration_database/linux_database_configuration.html
+    command: --transaction-isolation=READ-COMMITTED --log-bin=msqyld-bin --binlog-format=ROW
+    networks:
+      - nextcloud
+    volumes:
+      - ./docker/db:/var/lib/mysql
+    environment:
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+  
+  redis:
+    image: redis:6.2-alpine
+    container_name: ebc_redis
+    restart: unless-stopped
+    networks:
+      - nextcloud
+    volumes:
+      - ./docker/redis:/data
+
+networks:
+  nextcloud:
+    name: nextcloud
