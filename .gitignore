@@ -1,1 +1,4 @@
 .env
+./docker/nextcloud
+./docker/redis
+./docker/db
